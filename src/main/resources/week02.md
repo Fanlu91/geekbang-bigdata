@@ -181,6 +181,12 @@ sh-4.1# bin/hadoop fs -cat /output1/part-r-00000
 ➜  geekbang_bigdata git:(master) ✗ git branch -m master main                                            
 ➜  geekbang_bigdata git:(main) ✗ git pull
 ➜  geekbang_bigdata git:(main) ✗ git pull origin main  
+➜  geekbang_bigdata git:(main) ✗ git add .
+
+➜  geekbang_bigdata git:(main) ✗ git commit -m "initial commit"
+
+➜  geekbang_bigdata git:(main) git push origin main
+
   
 
 ```
