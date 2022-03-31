@@ -750,4 +750,4 @@ Shakespeare in Love (1998)	4.127479949345715
 Time taken: 16.161 seconds, Fetched: 10 row(s)
 ```
 
-似乎还是与结果存在差异。待助教解答。
+似乎还是与结果存在差异。
