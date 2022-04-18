@@ -249,7 +249,13 @@ sparkDistCp hdfs://xxx/source hdfs://xxx/target
 
 
 
+## 思路
 
+这道题目的难度显著大了一些，有几个地方需要学习和实现
+
+- 参数识别和传递
+- spark 递归读/写 hdfs目录及文件
+- map并行度手工控制
 
 
 

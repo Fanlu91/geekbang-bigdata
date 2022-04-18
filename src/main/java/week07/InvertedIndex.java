@@ -37,7 +37,7 @@ public class InvertedIndex {
     public static void main(String[] args) throws Exception {
         SparkSession spark = SparkSession
                 .builder()
-                .appName("JavaSparkPi")
+                .appName("InvertedIndex")
 //                .config("spark.master", "local")
                 .getOrCreate();
 
