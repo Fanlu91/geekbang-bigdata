@@ -10,3 +10,7 @@ https://github.com/Fanlu91/geekbang-bigdata/blob/main/src/main/resources/week02.
 https://github.com/Fanlu91/geekbang-bigdata/blob/main/src/main/resources/week05.md
 
 
+# week7
+https://github.com/Fanlu91/geekbang-bigdata/blob/main/src/main/resources/week07.md
+
+
