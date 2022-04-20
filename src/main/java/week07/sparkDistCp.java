@@ -1,6 +1,7 @@
 package week07;
 
 import org.apache.hadoop.fs.*;
+import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.spark.SparkConf;
 import org.apache.spark.SparkContext;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -44,6 +45,8 @@ public class sparkDistCp {
             System.out.println(lfs.getPath().getParent());
             System.out.println(lfs.getPath().getName());
             System.out.println(lfs.getPath().depth());
+
+//            fileSystem.mkdirs(new Path("hdfs://localhost:9000/" + target + "/"), new FsPermission("777"));
 
             FileUtil.copy(fileSystem, lfs.getPath(),
                     fileSystem, new Path("hdfs://localhost:9000/" + target + "/" + lfs.getPath().getName()),

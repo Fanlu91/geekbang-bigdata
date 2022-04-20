@@ -410,3 +410,117 @@ hdfs://localhost:9000/sparkdata/dir1
 
 ### 实现copy
 
+
+
+前面已经拿到了`LocatedFileStatus lfs = it.next();`根据获得的path信息，利用hadoop.FileUtil尝试copy操作
+
+```java
+     while (it.hasNext()) {
+            LocatedFileStatus lfs = it.next();
+            System.out.println(lfs.getPath());
+            System.out.println(lfs.getPath().getParent());
+            System.out.println(lfs.getPath().getName());
+            System.out.println(lfs.getPath().depth());
+            // fileSystem.mkdirs(new Path("hdfs://localhost:9000/" + target + "/"), new FsPermission("777"));
+            FileUtil.copy(fileSystem, lfs.getPath(),
+                     fileSystem, new Path("hdfs://localhost:9000/" + target + "/" + lfs.getPath().getName()),
+                     false, false, jsc.hadoopConfiguration());
+```
+
+这里/target使用了已经创建好的路径，并且修改了用户组，否则会出现访问权限的问题，暂时不去解决。
+
+
+
+执行之后，发现运行到中间会卡住（第一次执行到FileUtil.copy后），遇到了`hadoop.net.ConnectTimeoutException`
+
+```less
+2022-04-20 20:23:53 INFO  ContextHandler:915 - Started o.s.j.s.ServletContextHandler@57bd2029{/metrics/json,null,AVAILABLE,@Spark}
+hdfs://localhost:9000/sparkdata/0.txt
+hdfs://localhost:9000/sparkdata
+0.txt
+2
+2022-04-20 20:24:53 WARN  BlockReaderFactory:769 - I/O error constructing remote block reader.
+org.apache.hadoop.net.ConnectTimeoutException: 60000 millis timeout while waiting for channel to be ready for connect. ch : java.nio.channels.SocketChannel[connection-pending remote=/172.17.0.2:50010]
+```
+
+发现target下已经创建了文件，但是文件内容为空，报错信息看似乎取不到block
+
+```less
+bash-4.1# bin/hadoop fs -ls /target
+Found 1 items
+-rw-r--r--   3 fanlu fanlu          0 2022-04-20 08:23 /target/0.txt
+bash-4.1# bin/hadoop fs -cat /target/0.txt
+bash-4.1#
+```
+
+
+
+docker 容器内的Datanode 服务没有看出明显问题
+
+```less
+bash-4.1# bin/hadoop fs -cp /sparkdata/0.txt /test.txt
+22/04/20 08:33:39 WARN hdfs.DFSClient: DFSInputStream has been closed already
+bash-4.1# bin/hadoop fs -cat /test.txt
+spark distcp
+
+
+bash-4.1# ifconfig
+eth0      Link encap:Ethernet  HWaddr 02:42:AC:11:00:02
+          inet addr:172.17.0.2  Bcast:172.17.255.255  Mask:255.255.0.0
+
+bash-4.1# netstat -anp | grep 50010
+tcp        0      0 0.0.0.0:50010               0.0.0.0:*                   LISTEN      254/java
+bash-4.1# ps -ef | grep 254
+root       254     1  0 01:38 ?        00:02:45 /usr/java/default/bin/java -Dproc_datanode -Xmx1000m -Djava.net.preferIPv4Stack=true -Dhadoop.log.dir=/usr/local/hadoop/logs -Dhadoop.log.file=hadoop.log -Dhadoop.home.dir= -Dhadoop.id.str=root -Dhadoop.root.logger=INFO,console -Djava.library.path= -Dhadoop.policy.file=hadoop-policy.xml -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv4Stack=true -Dhadoop.log.dir=/usr/local/hadoop/logs -Dhadoop.log.file=hadoop-root-datanode-27c12f12e43b.log -Dhadoop.home.dir=/usr/local/hadoop -Dhadoop.id.str=root -Dhadoop.root.logger=INFO,RFA -Djava.library.path=/usr/local/hadoop/lib/native -Dhadoop.policy.file=hadoop-policy.xml -Djava.net.preferIPv4Stack=true -server -Dhadoop.security.logger=ERROR,RFAS -Dhadoop.security.logger=ERROR,RFAS -Dhadoop.security.logger=ERROR,RFAS -Dhadoop.security.logger=INFO,RFAS org.apache.hadoop.hdfs.server.datanode.DataNode
+```
+
+
+
+```less
+2022-04-20 20:15:31 INFO  ContextHandler:915 - Started o.s.j.s.ServletContextHandler@60f2e0bd{/metrics/json,null,AVAILABLE,@Spark}
+hdfs://localhost:9000/sparkdata/0.txt
+hdfs://localhost:9000/sparkdata
+0.txt
+2
+2022-04-20 20:16:31 WARN  BlockReaderFactory:769 - I/O error constructing remote block reader.
+org.apache.hadoop.net.ConnectTimeoutException: 60000 millis timeout while waiting for channel to be ready for connect. ch : java.nio.channels.SocketChannel[connection-pending remote=/172.17.0.2:50010]
+	at org.apache.hadoop.net.NetUtils.connect(NetUtils.java:589)
+	at org.apache.hadoop.hdfs.DFSClient.newConnectedPeer(DFSClient.java:3025)
+	at org.apache.hadoop.hdfs.client.impl.BlockReaderFactory.nextTcpPeer(BlockReaderFactory.java:826)
+	at org.apache.hadoop.hdfs.client.impl.BlockReaderFactory.getRemoteBlockReaderFromTcp(BlockReaderFactory.java:751)
+	at org.apache.hadoop.hdfs.client.impl.BlockReaderFactory.build(BlockReaderFactory.java:381)
+	at org.apache.hadoop.hdfs.DFSInputStream.getBlockReader(DFSInputStream.java:755)
+	at org.apache.hadoop.hdfs.DFSInputStream.blockSeekTo(DFSInputStream.java:685)
+	at org.apache.hadoop.hdfs.DFSInputStream.readWithStrategy(DFSInputStream.java:884)
+	at org.apache.hadoop.hdfs.DFSInputStream.read(DFSInputStream.java:957)
+	at java.io.DataInputStream.read(DataInputStream.java:100)
+	at org.apache.hadoop.io.IOUtils.copyBytes(IOUtils.java:94)
+	at org.apache.hadoop.io.IOUtils.copyBytes(IOUtils.java:68)
+	at org.apache.hadoop.io.IOUtils.copyBytes(IOUtils.java:129)
+	at org.apache.hadoop.fs.FileUtil.copy(FileUtil.java:418)
+	at org.apache.hadoop.fs.FileUtil.copy(FileUtil.java:390)
+	at week07.sparkDistCp.main(sparkDistCp.java:51)
+2022-04-20 20:16:31 WARN  DFSClient:707 - Failed to connect to /172.17.0.2:50010 for file /sparkdata/0.txt for block BP-581371184-172.17.13.14-1437578119536:blk_1073741861_1037, add to deadNodes and continue. 
+org.apache.hadoop.net.ConnectTimeoutException: 60000 millis timeout while waiting for channel to be ready for connect. ch : java.nio.channels.SocketChannel[connection-pending remote=/172.17.0.2:50010]
+	at org.apache.hadoop.net.NetUtils.connect(NetUtils.java:589)
+	at org.apache.hadoop.hdfs.DFSClient.newConnectedPeer(DFSClient.java:3025)
+	at org.apache.hadoop.hdfs.client.impl.BlockReaderFactory.nextTcpPeer(BlockReaderFactory.java:826)
+	at org.apache.hadoop.hdfs.client.impl.BlockReaderFactory.getRemoteBlockReaderFromTcp(BlockReaderFactory.java:751)
+	at org.apache.hadoop.hdfs.client.impl.BlockReaderFactory.build(BlockReaderFactory.java:381)
+	at org.apache.hadoop.hdfs.DFSInputStream.getBlockReader(DFSInputStream.java:755)
+	at org.apache.hadoop.hdfs.DFSInputStream.blockSeekTo(DFSInputStream.java:685)
+	at org.apache.hadoop.hdfs.DFSInputStream.readWithStrategy(DFSInputStream.java:884)
+	at org.apache.hadoop.hdfs.DFSInputStream.read(DFSInputStream.java:957)
+	at java.io.DataInputStream.read(DataInputStream.java:100)
+	at org.apache.hadoop.io.IOUtils.copyBytes(IOUtils.java:94)
+	at org.apache.hadoop.io.IOUtils.copyBytes(IOUtils.java:68)
+	at org.apache.hadoop.io.IOUtils.copyBytes(IOUtils.java:129)
+	at org.apache.hadoop.fs.FileUtil.copy(FileUtil.java:418)
+	at org.apache.hadoop.fs.FileUtil.copy(FileUtil.java:390)
+	at week07.sparkDistCp.main(sparkDistCp.java:51)
+2022-04-20 20:16:31 WARN  DFSClient:1104 - No live nodes contain block BP-581371184-172.17.13.14-1437578119536:blk_1073741861_1037 after checking nodes = [DatanodeInfoWithStorage[172.17.0.2:50010,DS-a38d90cd-97c9-499b-914f-c710b2f0574a,DISK]], ignoredNodes = null
+2022-04-20 20:16:31 INFO  DFSClient:1014 - Could not obtain BP-581371184-172.17.13.14-1437578119536:blk_1073741861_1037 from any node:  No live nodes contain current block Block locations: DatanodeInfoWithStorage[172.17.0.2:50010,DS-a38d90cd-97c9-499b-914f-c710b2f0574a,DISK] Dead nodes:  DatanodeInfoWithStorage[172.17.0.2:50010,DS-a38d90cd-97c9-499b-914f-c710b2f0574a,DISK]. Will get new block locations from namenode and retry...
+2022-04-20 20:16:31 WARN  DFSClient:1033 - DFS chooseDataNode: got # 1 IOException, will wait for 1396.6303117231496 msec.
+```
+
+暂时没有解决思路。
