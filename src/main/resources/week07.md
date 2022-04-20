@@ -221,14 +221,6 @@ public class InvertedIndex {
 
 
 
-
-
-
-
-
-
-
-
 # 作业二
 
 Distcp 的 Spark 实现
@@ -258,4 +250,163 @@ sparkDistCp hdfs://xxx/source hdfs://xxx/target
 - map并行度手工控制
 
 
+
+## 环境准备
+
+在本地启动 hdfs docker 环境，创建source文件夹及文件
+
+```shell
+bash-4.1# cd $HADOOP_PREFIX
+bash-4.1# bin/hadoop fs -mkdir -p /sparkdata/dir1
+bash-4.1# bin/hadoop fs -mkdir -p /sparkdata/dir2
+
+bash-4.1# echo "spark distcp" > 0.txt
+bash-4.1# cp 0.txt 1.txt
+bash-4.1# bin/hadoop fs -copyFromLocal 0.txt /sparkdata/
+bash-4.1# bin/hadoop fs -copyFromLocal 1.txt /sparkdata/dir1/
+bash-4.1# bin/hadoop fs -ls -R /sparkdata
+-rw-r--r--   1 root supergroup         13 2022-04-19 20:56 /sparkdata/0.txt
+drwxr-xr-x   - root supergroup          0 2022-04-19 20:57 /sparkdata/dir1
+-rw-r--r--   1 root supergroup         13 2022-04-19 20:57 /sparkdata/dir1/1.txt
+```
+
+
+
+## 解答
+
+### spark java api 访问hdfs
+
+尝试通过如下代码读取 hdfs的文件内容
+
+```java
+SparkContext context = new SparkContext(new SparkConf().setAppName("sparkDistCp").setMaster("local[*]")
+                .set("spark.hadoop.fs.default.name", "hdfs://localhost:50070").set("spark.hadoop.fs.defaultFS", "hdfs://localhost:50070")
+                .set("spark.hadoop.fs.hdfs.impl", org.apache.hadoop.hdfs.DistributedFileSystem.class.getName())
+                .set("spark.hadoop.fs.hdfs.server", org.apache.hadoop.hdfs.server.namenode.NameNode.class.getName())
+                .set("spark.hadoop.conf", org.apache.hadoop.hdfs.HdfsConfiguration.class.getName()));
+        SparkSession session = SparkSession.builder().sparkContext(context).getOrCreate();
+        
+        JavaSparkContext jsc = new JavaSparkContext(session.sparkContext());
+
+        FileSystem fileSystem = FileSystem.get(jsc.hadoopConfiguration()); // 42
+        RemoteIterator<LocatedFileStatus> it = fileSystem.listFiles(new Path("hdfs://localhost:50070/sparkdata"), true); 
+
+        while (it.hasNext()) {
+            LocatedFileStatus lfs = it.next();
+            System.out.println(lfs.getPath());
+            System.out.println(lfs.getPath().getParent());
+            System.out.println(lfs.getPath().getName());
+            System.out.println(lfs.getPath().depth());
+        }
+```
+
+#### 排错 hdfs依赖版本
+
+执行遇到如下错误
+
+```less
+Exception in thread "main" java.lang.VerifyError: Bad return type
+Exception Details:
+  Location:
+    org/apache/hadoop/hdfs/DFSClient.getQuotaUsage(Ljava/lang/String;)Lorg/apache/hadoop/fs/QuotaUsage; @160: areturn
+  Reason:
+    Type 'org/apache/hadoop/fs/ContentSummary' (current frame, stack[0]) is not assignable to 'org/apache/hadoop/fs/QuotaUsage' (from method signature)
+  Current Frame:
+    bci: @160
+    flags: { }
+    locals: { 'org/apache/hadoop/hdfs/DFSClient', 'java/lang/String', 'org/apache/hadoop/ipc/RemoteException', 'java/io/IOException' }
+    stack: { 'org/apache/hadoop/fs/ContentSummary' }
+  Bytecode:
+    0x0000000: 2ab6 0316 2a13 07ac 2bb6 031b 4d01 4e2a
+    0x0000010: b401 8a2b b907 ae02 003a 042c c600 1d2d
+    0x0000020: c600 152c b603 21a7 0012 3a05 2d19 05b6
+    0x0000030: 0325 a700 072c b603 2119 04b0 3a04 1904
+    0x0000040: 4e19 04bf 3a06 2cc6 001d 2dc6 0015 2cb6
+    0x0000050: 0321 a700 123a 072d 1907 b603 25a7 0007
+    0x0000060: 2cb6 0321 1906 bf4d 2c07 bd03 7e59 0313
+    0x0000070: 0380 5359 0413 03b0 5359 0513 03b2 5359
+    0x0000080: 0613 07b2 53b6 0384 4e2d c107 b299 0014
+    0x0000090: b201 2713 07b4 b901 4102 002a 2bb6 07b5
+    0x00000a0: b02d bf                                
+  Exception Handler Table:
+    bci [35, 39] => handler: 42
+    bci [15, 27] => handler: 60
+    bci [15, 27] => handler: 68
+    bci [78, 82] => handler: 85
+    bci [60, 70] => handler: 68
+    bci [4, 57] => handler: 103
+    bci [60, 103] => handler: 103
+  Stackmap Table:
+    full_frame(@42,{Object[#2],Object[#575],Object[#800],Object[#677],Object[#1968]},{Object[#677]})
+    same_frame(@53)
+    same_frame(@57)
+    full_frame(@60,{Object[#2],Object[#575],Object[#800],Object[#677]},{Object[#677]})
+    same_locals_1_stack_item_frame(@68,Object[#677])
+    full_frame(@85,{Object[#2],Object[#575],Object[#800],Object[#677],Top,Top,Object[#677]},{Object[#677]})
+    same_frame(@96)
+    same_frame(@100)
+    full_frame(@103,{Object[#2],Object[#575]},{Object[#880]})
+    append_frame(@161,Object[#880],Object[#205])
+
+	at org.apache.hadoop.hdfs.DistributedFileSystem.initDFSClient(DistributedFileSystem.java:201)
+	at org.apache.hadoop.hdfs.DistributedFileSystem.initialize(DistributedFileSystem.java:186)
+	at org.apache.hadoop.fs.FileSystem.createFileSystem(FileSystem.java:2653)
+	at org.apache.hadoop.fs.FileSystem.access$200(FileSystem.java:92)
+	at org.apache.hadoop.fs.FileSystem$Cache.getInternal(FileSystem.java:2687)
+	at org.apache.hadoop.fs.FileSystem$Cache.get(FileSystem.java:2669)
+	at org.apache.hadoop.fs.FileSystem.get(FileSystem.java:371)
+	at org.apache.hadoop.fs.FileSystem.get(FileSystem.java:170)
+	at week07.sparkDistCp.main(sparkDistCp.java:37)
+```
+
+判断可能是`spark.hadoop.fs.hdfs.` 版本与hadoop版本不匹配导致。原本根据docker上的hadoop版本，引入了2.7.0的hdfs依赖，*ContentSummary*这个类是从hadoop 2.8以后发生了变化。
+
+将hdfs版本改为3.3.2，此问题没有再出现。
+
+
+
+#### 排错 netty依赖版本
+
+不过执行之后又遇到了新的问题，在定义SparkContext的位置报了netty的问题：
+
+```less
+Exception in thread "main" java.lang.NoSuchMethodError: io.netty.buffer.PooledByteBufAllocator.<init>(ZIIIIIIZ)V
+```
+
+在网上搜索，大多提到可能是引入不同版本的netty导致的问题，需要处理netty依赖，通过`mvn dependency:tree`分析解决了问题。
+
+
+
+#### 排错 端口用错
+
+再次尝试运行，遇到了又一个问题
+
+```less
+Exception in thread "main" org.apache.hadoop.ipc.RpcException: RPC response exceeds maximum data length
+	at org.apache.hadoop.ipc.Client$IpcStreams.readResponse(Client.java:1906)
+	at org.apache.hadoop.ipc.Client$Connection.receiveRpcResponse(Client.java:1202)
+	at org.apache.hadoop.ipc.Client$Connection.run(Client.java:1098)
+```
+
+发现是使用错了端口，将50070 改为 **9000**成功拿到了数据。
+
+
+
+这样我们就通过spark获取到了source 文件夹的信息 uri、parent dir、file name、depth
+
+```less
+hdfs://localhost:9000/sparkdata/0.txt
+hdfs://localhost:9000/sparkdata
+0.txt
+2
+hdfs://localhost:9000/sparkdata/dir1/1.txt
+hdfs://localhost:9000/sparkdata/dir1
+1.txt
+3
+2022-04-20 14:44:17 INFO  AbstractConnector:381 - Stopped Spark@290b1b2e{HTTP/1.1, (http/1.1)}{0.0.0.0:4040}
+```
+
+
+
+### 实现copy
 
