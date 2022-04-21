@@ -1,4 +1,4 @@
-# 作业一
+### 作业一
 
 ## 环境准备
 
@@ -251,6 +251,52 @@ sparkDistCp hdfs://xxx/source hdfs://xxx/target
 
 
 
+### 学习 hadoop-distcp 
+
+DistCp (distributed copy) is a tool used for large inter/intra-cluster copying. It uses MapReduce to effect its distribution, error handling and recovery, and reporting. It expands a list of files and directories into input to **map tasks**, each of which will copy a partition of the files specified in the source list.
+
+
+
+#### 与cp的区别
+
+fs cp，data has to transit via the machine you issue the command on
+
+distcp runs a MR job behind and cp command just invokes the FileSystem copy command for every file.
+
+#### 查看源码
+
+将[ https://github.com/apache/hadoop/tree/release-2.7.1/hadoop-tools/hadoop-distcp](https://github.com/apache/hadoop/tree/release-2.7.1/hadoop-tools/hadoop-distcp) 克隆下来。
+
+
+
+根据DistCp 类的run方法注释可以看出主体实现思路：
+
+```less
+* Implementation of Tool::run(). Orchestrates the copy of source file(s)
+* to target location, by:
+*  1. Creating a list of files to be copied to target.
+*  2. Launching a Map-only job to copy the files. (Delegates to execute().)
+```
+
+具体过程，除了各种校验和配置，主线是首先进行FileListing，得到 kv对，key是相对文件路径和文件状态
+
+```less
+For instance if the source path is /tmp/data and the traversed path is
+* /tmp/data/dir1/dir2/file1, then the sequence file would contain
+* key: /dir1/dir2/file1 and value: FileStatus(/tmp/data/dir1/dir2/file1)
+also contain directory entries.
+```
+
+把得到的FileListing传入一个mr job去执行。
+
+
+
+execute执行创建job的任务，mr的逻辑包含在creatJob当中，mapper class是`org.apache.hadoop.tools.mapredCopyMapper`,
+
+`Mapper::map()` Does the copy. 对我们要做的rdd操作逻辑有一定的参考价值。
+
+
+
 ## 环境准备
 
 在本地启动 hdfs docker 环境，创建source文件夹及文件
@@ -273,6 +319,30 @@ drwxr-xr-x   - root supergroup          0 2022-04-19 20:57 /sparkdata/dir1
 
 
 ## 解答
+
+### 获取参数
+
+实现OptionsParser有点过重，通过字符处理简单粗糙的获取一下
+
+```java
+if (args.length < 2) {
+  System.err.println("Usage: sparkDistCp <hdfs://xxx/source> <hdfs://xxx/target> [ -i Ignore failures ] [ -m max concurrency ]");
+  System.exit(1);
+}
+
+String source = args[0];
+String target = args[1];
+boolean ignoreFailure = false;
+int maxCon = 3;
+for (int i = 2; i < args.length; i++) {
+  if (args[i].equals("-i"))
+    ignoreFailure = true;
+  if (args[i].equals("-m") && args.length - 1 > i)
+    maxCon = Integer.parseInt(args[i + 1]);
+}
+```
+
+
 
 ### spark java api 访问hdfs
 
@@ -524,3 +594,21 @@ org.apache.hadoop.net.ConnectTimeoutException: 60000 millis timeout while waitin
 ```
 
 暂时没有解决思路。
+
+
+
+
+
+
+
+1. Creating a list of files to be copied to target.
+2. Launching a Map-only job to copy the files. (Delegates to execute().)
+
+```
+
+```
+
+```shell
+
+```
+
