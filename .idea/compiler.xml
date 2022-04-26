@@ -6,7 +6,10 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
-        <module name="geekbang_bigdata" />
+        <module name="week02" />
+        <module name="week09" />
+        <module name="week07" />
+        <module name="week05" />
       </profile>
     </annotationProcessing>
   </component>

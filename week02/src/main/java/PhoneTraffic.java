@@ -1,4 +1,4 @@
-package week02;
+
 
 import org.apache.hadoop.io.Writable;
 

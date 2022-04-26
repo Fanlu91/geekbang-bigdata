@@ -293,7 +293,13 @@ also contain directory entries.
 
 execute执行创建job的任务，mr的逻辑包含在creatJob当中，mapper class是`org.apache.hadoop.tools.mapredCopyMapper`,
 
-`Mapper::map()` Does the copy. 对我们要做的rdd操作逻辑有一定的参考价值。
+`Mapper::map()` Does the copy
+
+- 大概的文件复制流程是 copyFileWithRetry -》RetriableFileCopyCommand ->doCopy ->copyToFile ->copyBytes 然后
+
+
+
+byte stream level的实现比较困难，本次直接使用hadoop的util copy方法在rdd里实现文件的传输。
 
 
 
@@ -443,7 +449,9 @@ Exception Details:
 Exception in thread "main" java.lang.NoSuchMethodError: io.netty.buffer.PooledByteBufAllocator.<init>(ZIIIIIIZ)V
 ```
 
-在网上搜索，大多提到可能是引入不同版本的netty导致的问题，需要处理netty依赖，通过`mvn dependency:tree`分析解决了问题。
+在网上搜索，大多提到可能是引入不同版本的netty导致的问题，需要处理netty依赖，通过`mvn dependency:tree`分析，
+
+hadoop-common以及其他包 与 spark-hive  之间的netty版本冲突，exclude hadoop中的依赖后解决。两者冲突不止这一个问题，不应该把mr和spark引入到同一个pom当中，以后需要注意。
 
 
 
@@ -593,22 +601,4 @@ org.apache.hadoop.net.ConnectTimeoutException: 60000 millis timeout while waitin
 2022-04-20 20:16:31 WARN  DFSClient:1033 - DFS chooseDataNode: got # 1 IOException, will wait for 1396.6303117231496 msec.
 ```
 
-暂时没有解决思路。
-
-
-
-
-
-
-
-1. Creating a list of files to be copied to target.
-2. Launching a Map-only job to copy the files. (Delegates to execute().)
-
-```
-
-```
-
-```shell
-
-```
-
+暂时没有解决思路，比较像dataNode配置或者网络的问题。
