@@ -13,5 +13,5 @@ https://github.com/Fanlu91/geekbang-bigdata/blob/main/week05
 https://github.com/Fanlu91/geekbang-bigdata/blob/main/week07
 
 # week9
-https://github.com/Fanlu91/geekbang-bigdata/blob/main/week07
+https://github.com/Fanlu91/geekbang-bigdata/blob/main/week09
 
