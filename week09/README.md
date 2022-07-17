@@ -49,3 +49,41 @@ TypedFilter $line25.$read$$iw$$iw$$iw$$iw$$iw$$iw$$iw$$iw$$Lambda$4008/155098499
 +- *(1) LocalTableScan [value#12]
 ```
 
+
+
+# 作业
+
+## 作业一：为 Spark SQL 添加一条自定义命令
+
+SHOW VERSION；
+显示当前 Spark 版本和 Java 版本。
+## 作业二：构建 SQL 满足如下要求
+
+通过 set spark.sql.planChangeLog.level=WARN，查看：
+
+构建一条 SQL，同时 apply 下面三条优化规则：
+CombineFilters
+CollapseProject
+BooleanSimplification
+构建一条 SQL，同时 apply 下面五条优化规则：
+ConstantFolding
+PushDownPredicates
+ReplaceDistinctWithAggregate
+ReplaceExceptWithAntiJoin
+FoldablePropagation
+
+
+
+## 作业三：实现自定义优化规则（静默规则）
+
+1. 第一步：实现自定义规则 (静默规则，通过 set spark.sql.planChangeLog.level=WARN，确认执行到就行)
+
+```scala
+case class MyPushDown(spark: SparkSession) extends Rule[LogicalPlan] {
+ def apply(plan: LogicalPlan): LogicalPlan = plan transform { .... }
+}
+```
+
+2. 第二步：创建自己的 Extension 并注入
+3. 第三步：通过 spark.sql.extensions 提交
+   `bin/spark-sql --jars my.jar --conf spark.sql.extensions=com.jikeshijian.MySparkSessionExtension`
